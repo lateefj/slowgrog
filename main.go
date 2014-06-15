@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,11 +13,17 @@ import (
 )
 
 var (
-	Trace   *log.Logger
-	Info    *log.Logger
-	Warning *log.Logger
-	Error   *log.Logger
-	Status  *RedisStatus
+	Trace               *log.Logger
+	Info                *log.Logger
+	Warning             *log.Logger
+	Error               *log.Logger
+	Status              *RedisStatus
+	CmdLimit            int
+	Frequency           int
+	MonitorSampleLength int
+	SlowlogSize         int
+	RedisHost           string
+	RedisPort           int
 )
 
 func init() {
@@ -38,6 +45,12 @@ func init() {
 		log.Ldate|log.Ltime|log.Lshortfile)
 
 	Status = &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0)}
+	flag.IntVar(&CmdLimit, "cmdlimit", 100, "number of commands the monitor will store")
+	flag.IntVar(&Frequency, "frequency", 10000, "Number of miliseconds to delay between samples info, slowlog")
+	flag.IntVar(&MonitorSampleLength, "monsamplen", 1000, "Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)")
+	flag.IntVar(&SlowlogSize, "slogsize", 10, "slowlog size")
+	flag.StringVar(&RedisHost, "h", "127.0.0.1", "redis host ")
+	flag.IntVar(&RedisPort, "p", 6379, "redis port")
 }
 
 type RedisStatus struct {
@@ -46,28 +59,31 @@ type RedisStatus struct {
 	MonitorSample []*MonitorCmd          `json:"monitor_sample"`
 }
 
+func rcon() (redis.Conn, error) {
+	return redis.Dial("tcp", fmt.Sprintf("%s:%d", RedisHost, RedisPort))
+}
+
 func main() {
 	go func() {
 		for {
-			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0)}
-			c, err := redis.Dial("tcp", ":6379")
+			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, CmdLimit)}
+			c, err := rcon()
 			if err != nil {
-				// handle error
+				Error.Printf("Failed to make connection %s", err)
+				continue
 			}
-			defer c.Close()
-
+			go SampleMonitor(stat)
 			_, err = SampleInfo(c, stat)
 			if err != nil {
 				Error.Println(err)
 			}
-			fmt.Printf("Info: %s\n", stat.Info)
-			SampleMonitor(c, stat)
 			_, err = SampleSlowlog(c, stat)
 			if err != nil {
-				Error.Println(err)
+				Error.Printf("Error with slowlog %s", err)
 			}
 			Status = stat
-			time.Sleep(5 * time.Second)
+			c.Close()
+			time.Sleep(time.Duration(Frequency) * time.Second)
 		}
 	}()
 

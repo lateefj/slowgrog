@@ -2,6 +2,7 @@ package main
 
 import (
 	//"fmt"
+	"fmt"
 	"strings"
 	"time"
 
@@ -37,59 +38,66 @@ func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
 	}
 	return info, err
 }
-func SampleSlowlog(c redis.Conn, status *RedisStatus) (string, error) {
+
+func SampleSlowlog(c redis.Conn, status *RedisStatus) ([]Slowlog, error) {
 	Trace.Println("Sampling slowlog...")
-	c.Send(SLOWLOG, "get", "10")
+	c.Send(SLOWLOG, "get", fmt.Sprintf("%d", SlowlogSize))
 	c.Flush()
 	reply, err := c.Receive()
+	Trace.Printf("Slowlog reply %s", reply)
 	if err != nil {
 		Error.Println(err)
+		return nil, err
 	}
-	return redis.String(reply, err)
+	return ParesSlowlogLine(reply.([]interface{}))
 }
 
-func SampleMonitor(c redis.Conn, status *RedisStatus) {
-	replies := make(chan string, 100)
-	tout := make(chan bool, 2)
-	c.Send(MONITOR)
-	c.Flush()
-	go func() {
-		time.Sleep(time.Second * 10)
-		tout <- true
-		tout <- true
-	}()
-	go func() {
-		for {
-			select {
-			case <-tout:
-				println("Ok timeout happen now quiting..")
-				return
-			default:
+func SampleMonitor(status *RedisStatus) {
+	for {
+		c, err := rcon()
+		replies := make(chan string, 1000)
+		if err != nil {
+			Error.Printf("Connection failed sleeping and trying again")
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		c.Send(MONITOR)
+		c.Flush()
+		// In background push on the connection
+		go func() {
+			for {
 				reply, err := c.Receive()
 				if err != nil {
 					Error.Println(err)
-
+					close(replies)
+					return
 				}
 				r, err := redis.String(reply, err)
 				replies <- r
 				// process pushed message
 			}
-		}
-	}()
-	Trace.Println("Sampling monitor")
-	for {
-		select {
-		case reply := <-replies:
+		}()
+		replyIndex := 0
+		for {
+			reply, ok := <-replies
+			if !ok {
+				continue
+			}
 			cmdMon, err := ParseMonitorLine(reply)
 			if err != nil {
 				Error.Printf("Failed to parse line: %s", reply)
 			}
 			if cmdMon != nil {
-				status.MonitorSample = append(status.MonitorSample, cmdMon)
+				status.MonitorSample[replyIndex] = cmdMon
+				if replyIndex < CmdLimit-1 {
+					replyIndex++
+				} else {
+					if MonitorSampleLength > 0 {
+						time.Sleep(time.Duration(MonitorSampleLength) * time.Microsecond)
+					}
+					replyIndex = 0
+				}
 			}
-		case <-tout:
-			println("timeout")
-			return
 		}
 	}
 }

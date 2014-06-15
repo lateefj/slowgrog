@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
+
+	"github.com/garyburd/redigo/redis"
 )
 
 type MonitorCmd struct {
@@ -14,8 +17,8 @@ type MonitorCmd struct {
 
 // Parses a line from the monitor redis command.
 // Do we care about Host, Port? If so need to implement..
+// TODO: This parse sucks but MVP and all....
 func ParseMonitorLine(l string) (*MonitorCmd, error) {
-	Info.Println("\nParsing monitor line: " + l)
 	if l == "OK" {
 		return nil, nil
 	}
@@ -38,4 +41,22 @@ func ParseMonitorLine(l string) (*MonitorCmd, error) {
 		m.Params[i] = strings.Trim(p, "\"")
 	}
 	return m, nil
+}
+
+type Slowlog struct {
+	ID           int64
+	Timestamp    int64
+	Microseconds int64
+	Command      []string
+}
+
+// Parse the slowlog
+// XXX: Not working yet need to figure out how to conver slowlog to a struct
+func ParesSlowlogLine(reply []interface{}) ([]Slowlog, error) {
+	var logs []Slowlog
+	err := redis.ScanStruct(reply, logs)
+	if err != nil {
+		Error.Println(fmt.Sprintf("Erorr trying to scan logs %s", err))
+	}
+	return logs, err
 }

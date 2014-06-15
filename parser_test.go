@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestMonitorLine(t *testing.T) {
+func TestParseMonitorLine(t *testing.T) {
 	l1 := "1402710620.616109 [0 127.0.0.1:64643] \"PING\""
 	cmd, err := ParseMonitorLine(l1)
 	if err != nil {
@@ -41,4 +41,7 @@ func TestMonitorLine(t *testing.T) {
 	if cmd.Params[0] != "foo" {
 		t.Errorf("Exepcted 'foo' as first param but was %s", cmd.Params[0])
 	}
+}
+
+func TestParseSlowlogLine(t *testing.T) {
 }
