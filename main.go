@@ -44,7 +44,7 @@ func init() {
 		"ERROR: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	Status = &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0)}
+	Status := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0), CommandStats: CommandStats{CommandCounts: make(map[string]int64), BadCommands: make(map[string]int64)}, stats: NewStats()}
 	flag.IntVar(&CmdLimit, "cmdlimit", 100, "number of commands the monitor will store")
 	flag.IntVar(&Frequency, "frequency", 10000, "Number of miliseconds to delay between samples info, slowlog")
 	flag.IntVar(&MonitorSampleLength, "monsamplen", 1000, "Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)")
@@ -72,22 +72,20 @@ func rcon() (redis.Conn, error) {
 func main() {
 	go func() {
 		for {
-			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0), CommandStats: CommandStats{CommandCounts: make(map[string]int64), BadCommands: make(map[string]int64)}, stats: NewStats()}
 			c, err := rcon()
 			if err != nil {
 				Error.Printf("Failed to make connection %s", err)
 				continue
 			}
-			go SampleMonitor(stat)
-			_, err = SampleInfo(c, stat)
+			go SampleMonitor(Status)
+			_, err = SampleInfo(c, Status)
 			if err != nil {
 				Error.Println(err)
 			}
-			_, err = SampleSlowlog(c, stat)
+			_, err = SampleSlowlog(c, Status)
 			if err != nil {
 				Error.Printf("Error with slowlog %s", err)
 			}
-			Status = stat
 			c.Close()
 			time.Sleep(time.Duration(Frequency) * time.Second)
 		}
