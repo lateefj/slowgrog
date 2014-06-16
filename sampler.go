@@ -16,7 +16,7 @@ const (
 )
 
 func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
-	Trace.Println("Sampling slowlog...")
+	Trace.Println("Sampling INFO...")
 	c.Send(INFO)
 	c.Flush()
 	reply, err := c.Receive()
@@ -41,7 +41,7 @@ func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
 
 func SampleSlowlog(c redis.Conn, status *RedisStatus) ([]Slowlog, error) {
 	Trace.Println("Sampling slowlog...")
-	c.Send(SLOWLOG, "get", fmt.Sprintf("%d", SlowlogSize))
+	c.Send(SLOWLOG, "GET", fmt.Sprintf("%d", SlowlogSize))
 	c.Flush()
 	reply, err := c.Receive()
 	Trace.Printf("Slowlog reply %s", reply)
@@ -88,10 +88,17 @@ func SampleMonitor(status *RedisStatus) {
 				Error.Printf("Failed to parse line: %s", reply)
 			}
 			if cmdMon != nil {
-				status.MonitorSample[replyIndex] = cmdMon
+				// Append if room else write over them
+				if len(status.MonitorSample) <= replyIndex {
+					status.MonitorSample = append(status.MonitorSample, cmdMon)
+				} else {
+					status.MonitorSample[replyIndex] = cmdMon
+				}
+				// Increment index else reset to 0
 				if replyIndex < CmdLimit-1 {
 					replyIndex++
 				} else {
+					// Danger performance danger but this setting has to be overwritten by config so YMMV
 					if MonitorSampleLength > 0 {
 						time.Sleep(time.Duration(MonitorSampleLength) * time.Microsecond)
 					}

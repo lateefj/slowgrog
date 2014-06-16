@@ -66,7 +66,7 @@ func rcon() (redis.Conn, error) {
 func main() {
 	go func() {
 		for {
-			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, CmdLimit)}
+			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0)}
 			c, err := rcon()
 			if err != nil {
 				Error.Printf("Failed to make connection %s", err)
