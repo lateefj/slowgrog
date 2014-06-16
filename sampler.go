@@ -94,6 +94,9 @@ func SampleMonitor(status *RedisStatus) {
 				} else {
 					status.MonitorSample[replyIndex] = cmdMon
 				}
+
+				// Stats tracking
+				status.stats.IncCmdCount(cmdMon.Text)
 				// Increment index else reset to 0
 				if replyIndex < CmdLimit-1 {
 					replyIndex++

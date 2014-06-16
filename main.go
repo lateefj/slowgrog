@@ -53,10 +53,16 @@ func init() {
 	flag.IntVar(&RedisPort, "p", 6379, "redis port")
 }
 
+type CommandStats struct {
+	CommandCounts map[string]int64 `json:"command_counts"`
+	BadCommands   map[string]int64 `json:"bad_commands"`
+}
 type RedisStatus struct {
-	Info          map[string]interface{} `json:"info"`
+	CommandStats  CommandStats           `json:"stats"`
 	Slowlog       []string               `json:"slowlog"`
+	Info          map[string]interface{} `json:"info"`
 	MonitorSample []*MonitorCmd          `json:"monitor_sample"`
+	stats         *Stats
 }
 
 func rcon() (redis.Conn, error) {
@@ -66,7 +72,7 @@ func rcon() (redis.Conn, error) {
 func main() {
 	go func() {
 		for {
-			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0)}
+			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0), CommandStats: CommandStats{CommandCounts: make(map[string]int64), BadCommands: make(map[string]int64)}, stats: NewStats()}
 			c, err := rcon()
 			if err != nil {
 				Error.Printf("Failed to make connection %s", err)
@@ -89,6 +95,9 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		enc := json.NewEncoder(w)
+		// TODO: Fix this just added before hack session timed out
+		Status.CommandStats.CommandCounts = Status.stats.Counts()
+		Status.CommandStats.BadCommands = Status.stats.BadCmds()
 		enc.Encode(Status)
 	})
 	log.Fatal(http.ListenAndServe(":8000", nil))

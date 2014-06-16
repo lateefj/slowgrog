@@ -1,24 +1,33 @@
 package main
 
 var (
-	cmdCounts map[string]int64
-	BrokenCmd []string
-	BadCmd    []string
+	// Commands that are documented to be blocking, performance issues or not to be used for production
+	BadCmdList []string
 )
 
 func init() {
-	cmdCounts = make(map[string]int64)
-	BadCmd = []string{"SMEMBERS"}
-	BrokenCmd = []string{"KEYS"}
+
+	BadCmdList = []string{
+		"KEYS",     // KEYS is a blocking command that should NOT be used for production!!! (http://redis.io/commands/keys)
+		"SMEMBERS", // SMEMBERS is a blocking command that should not be used if possible instead use SCAN!! (http://redis.io/topics/latency)
+	}
 }
 
-func IncCmdCount(cmd string) {
-	v, exists := cmdCounts[cmd]
+type Stats struct {
+	cmdCounts map[string]int64
+}
+
+func NewStats() *Stats {
+	return &Stats{cmdCounts: make(map[string]int64)}
+}
+
+func (s *Stats) IncCmdCount(cmd string) {
+	v, exists := s.cmdCounts[cmd]
 	if !exists {
 		v = 0
 	}
 	v++
-	cmdCounts[cmd] = v
+	s.cmdCounts[cmd] = v
 }
 
 func contains(s string, l []string) bool {
@@ -30,19 +39,19 @@ func contains(s string, l []string) bool {
 	return false
 }
 
-func matchCmds(cmdList []string) map[string]int64 {
+func matchCmds(cmdList []string, counts map[string]int64) map[string]int64 {
 	cmds := make(map[string]int64)
-	for k, v := range cmdCounts {
+	for k, v := range counts {
 		if contains(k, cmdList) {
 			cmds[k] = v
 		}
 	}
 	return cmds
 }
-
-func GetBrokenCmds() map[string]int64 {
-	return matchCmds(BrokenCmd)
+func (s *Stats) Counts() map[string]int64 {
+	return s.cmdCounts
 }
-func GetBadComds() map[string]int64 {
-	return matchCmds(BadCmd)
+
+func (s *Stats) BadCmds() map[string]int64 {
+	return matchCmds(BadCmdList, s.cmdCounts)
 }
