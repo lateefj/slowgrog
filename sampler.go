@@ -2,7 +2,7 @@ package main
 
 import (
 	//"fmt"
-	"fmt"
+
 	"strings"
 	"time"
 
@@ -41,15 +41,14 @@ func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
 
 func SampleSlowlog(c redis.Conn, status *RedisStatus) ([]Slowlog, error) {
 	Trace.Println("Sampling slowlog...")
-	c.Send(SLOWLOG, "GET", fmt.Sprintf("%d", SlowlogSize))
-	c.Flush()
-	reply, err := c.Receive()
-	Trace.Printf("Slowlog reply %s", reply)
+	entries, err := redis.Values(c.Do(SLOWLOG, "GET", SlowlogSize))
 	if err != nil {
 		Error.Println(err)
 		return nil, err
 	}
-	return ParesSlowlogLine(reply.([]interface{}))
+	logs, err := ParesSlowlogLine(entries, err)
+	status.Slowlogs = logs
+	return logs, err
 }
 
 func SampleMonitor(status *RedisStatus) {

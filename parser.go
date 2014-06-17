@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -44,19 +43,34 @@ func ParseMonitorLine(l string) (*MonitorCmd, error) {
 }
 
 type Slowlog struct {
-	ID           int64
-	Timestamp    int64
-	Microseconds int64
-	Command      []string
+	ID        int64
+	Timestamp int64
+	Duration  int64
+	Command   []string
 }
 
 // Parse the slowlog
 // XXX: Not working yet need to figure out how to conver slowlog to a struct
-func ParesSlowlogLine(reply []interface{}) ([]Slowlog, error) {
-	var logs []Slowlog
-	err := redis.ScanStruct(reply, logs)
+func ParesSlowlogLine(entries []interface{}, err error) ([]Slowlog, error) {
+	logs := make([]Slowlog, 0)
+	//Trace.Printf("Slowlog data is: %v\n", reply)
 	if err != nil {
-		Error.Println(fmt.Sprintf("Erorr trying to scan logs %s", err))
+		log.Fatal(err)
 	}
-	return logs, err
+	for _, entry := range entries {
+		e, ok := entry.([]interface{})
+		if !ok {
+			Error.Println("Bad Slowlog entry")
+			continue
+		}
+		l := Slowlog{}
+		_, err = redis.Scan(e, &l.ID, &l.Timestamp, &l.Duration, &l.Command)
+		if err != nil {
+			Error.Printf("Error trying to scan slowlog is %s", err)
+			continue
+		}
+		Trace.Printf("Ok log is: %v\n", l)
+		logs = append(logs, l)
+	}
+	return logs, nil
 }
