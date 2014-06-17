@@ -50,10 +50,8 @@ type Slowlog struct {
 }
 
 // Parse the slowlog
-// XXX: Not working yet need to figure out how to conver slowlog to a struct
 func ParesSlowlogLine(entries []interface{}, err error) ([]Slowlog, error) {
 	logs := make([]Slowlog, 0)
-	//Trace.Printf("Slowlog data is: %v\n", reply)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -69,7 +67,6 @@ func ParesSlowlogLine(entries []interface{}, err error) ([]Slowlog, error) {
 			Error.Printf("Error trying to scan slowlog is %s", err)
 			continue
 		}
-		Trace.Printf("Ok log is: %v\n", l)
 		logs = append(logs, l)
 	}
 	return logs, nil
