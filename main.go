@@ -46,13 +46,14 @@ func init() {
 		log.Ldate|log.Ltime|log.Lshortfile)
 
 	Status = &RedisStatus{Info: make(map[string]interface{}), Slowlogs: make([]Slowlog, 0), MonitorSample: make([]*MonitorCmd, 0), stats: NewStats()}
+	flag.StringVar(&RedisHost, "h", "127.0.0.1", "redis host ")
+	flag.IntVar(&RedisPort, "p", 6379, "redis port")
+	flag.StringVar(&RedisPassword, "a", "", "Redis password")
+
 	flag.IntVar(&CmdLimit, "cmdlimit", 100, "number of commands the monitor will store")
 	flag.IntVar(&Frequency, "frequency", 10000, "Number of miliseconds to delay between samples info, slowlog")
 	flag.IntVar(&MonitorSampleLength, "monsamplen", 1000, "Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)")
 	flag.IntVar(&SlowlogSize, "slogsize", 10, "slowlog size")
-	flag.StringVar(&RedisHost, "h", "127.0.0.1", "redis host ")
-	flag.StringVar(&RedisPassword, "a", "", "Redis password")
-	flag.IntVar(&RedisPort, "p", 6379, "redis port")
 }
 
 type CommandStats struct {

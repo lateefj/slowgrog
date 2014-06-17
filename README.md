@@ -13,13 +13,16 @@ Command Arg:
 ------------
 Tried to keep the arguments for the redis-cli the same for auth, port and host. The other arguments are more for configuring the sampling of the data. 
 
--cmdlimit=100: number of recent commands the MONITOR will store
--frequency=10000: Number of miliseconds to delay between samples INFO, SLOWLOG
--monsamplen=1000: Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)
-
+```
 -h="127.0.0.1": redis host
 -p=6379: redis port
 -a="": Redis password
+
+-cmdlimit=100: number of recent commands the MONITOR will store
+-frequency=10000: Number of miliseconds to delay between samples INFO, SLOWLOG
+-monsamplen=1000: Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)
+-slogsize=10: slowlog size
+```
 
 
 Vision:
