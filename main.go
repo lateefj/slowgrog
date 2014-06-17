@@ -24,6 +24,7 @@ var (
 	SlowlogSize         int
 	RedisHost           string
 	RedisPort           int
+	RedisPassword       string
 )
 
 func init() {
@@ -44,12 +45,13 @@ func init() {
 		"ERROR: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	Status := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0), CommandStats: CommandStats{CommandCounts: make(map[string]int64), BadCommands: make(map[string]int64)}, stats: NewStats()}
+	Status = &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0)}
 	flag.IntVar(&CmdLimit, "cmdlimit", 100, "number of commands the monitor will store")
 	flag.IntVar(&Frequency, "frequency", 10000, "Number of miliseconds to delay between samples info, slowlog")
 	flag.IntVar(&MonitorSampleLength, "monsamplen", 1000, "Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)")
 	flag.IntVar(&SlowlogSize, "slogsize", 10, "slowlog size")
 	flag.StringVar(&RedisHost, "h", "127.0.0.1", "redis host ")
+	flag.StringVar(&RedisPassword, "a", "", "Redis password")
 	flag.IntVar(&RedisPort, "p", 6379, "redis port")
 }
 
@@ -66,26 +68,37 @@ type RedisStatus struct {
 }
 
 func rcon() (redis.Conn, error) {
-	return redis.Dial("tcp", fmt.Sprintf("%s:%d", RedisHost, RedisPort))
+	Trace.Printf("Connecting to redis host %s on port %d", RedisHost, RedisPort)
+	c, err := redis.Dial("tcp", fmt.Sprintf("%s:%d", RedisHost, RedisPort))
+	if RedisPassword != "" {
+		if _, err := c.Do("AUTH", RedisPassword); err != nil {
+			c.Close()
+			return c, err
+		}
+	}
+	return c, err
 }
 
 func main() {
+	flag.Parse()
 	go func() {
 		for {
+			stat := &RedisStatus{Info: make(map[string]interface{}), Slowlog: make([]string, 0), MonitorSample: make([]*MonitorCmd, 0), CommandStats: CommandStats{CommandCounts: make(map[string]int64), BadCommands: make(map[string]int64)}, stats: NewStats()}
 			c, err := rcon()
 			if err != nil {
 				Error.Printf("Failed to make connection %s", err)
 				continue
 			}
-			go SampleMonitor(Status)
-			_, err = SampleInfo(c, Status)
+			go SampleMonitor(stat)
+			_, err = SampleInfo(c, stat)
 			if err != nil {
 				Error.Println(err)
 			}
-			_, err = SampleSlowlog(c, Status)
+			_, err = SampleSlowlog(c, stat)
 			if err != nil {
 				Error.Printf("Error with slowlog %s", err)
 			}
+			Status = stat
 			c.Close()
 			time.Sleep(time.Duration(Frequency) * time.Second)
 		}
