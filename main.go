@@ -25,6 +25,8 @@ var (
 func init() {
 
 	Logger.Formatter = new(logrus.TextFormatter)
+	//Logger.Level = logrus.Info
+	Logger.Level = logrus.Debug
 
 	Status = &RedisStatus{Info: make(map[string]interface{}), Slowlogs: make([]Slowlog, 0), MonitorSample: make([]*MonitorCmd, 0), stats: NewStats()}
 	flag.StringVar(&RedisHost, "h", "127.0.0.1", "redis host ")
@@ -51,24 +53,19 @@ type RedisStatus struct {
 
 func main() {
 	flag.Parse()
+	rc := NewRedisCmds()
+	stopper := make(chan bool, 1)
 	go func() {
-		go SampleMonitor(Status)
+		go SampleMonitor(rc, stopper, Status)
 		for {
-			c, err := rcon()
-			if err != nil {
-
-				Logger.Errorf("Failed to make connection %s", err)
-				continue
-			}
-			_, err = SampleInfo(c, Status)
+			_, err := SampleInfo(rc, Status)
 			if err != nil {
 				Logger.Errorf("SampleInfo error %s\n", err)
 			}
-			_, err = SampleSlowlog(c, Status)
+			_, err = SampleSlowlog(rc, Status)
 			if err != nil {
 				Logger.Errorf("Error with slowLogger %s", err)
 			}
-			c.Close()
 			time.Sleep(time.Duration(Frequency) * time.Second)
 		}
 	}()

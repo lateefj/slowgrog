@@ -50,7 +50,7 @@ type Slowlog struct {
 }
 
 // Parse the slowlog
-func ParesSlowlogLine(entries []interface{}, err error) ([]Slowlog, error) {
+func ParseSlowlogReply(entries []interface{}, err error) ([]Slowlog, error) {
 	logs := make([]Slowlog, 0)
 	if err != nil {
 		Logger.Fatal(err)

@@ -5,21 +5,14 @@ import (
 
 	"strings"
 	"time"
-
-	"github.com/garyburd/redigo/redis"
 )
 
 const ()
 
-func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
+func SampleInfo(cmds DataCmds, status *RedisStatus) (string, error) {
 	Logger.Debug("Sampling INFO...")
-	c.Send(INFO)
-	c.Flush()
-	reply, err := c.Receive()
-	if err != nil {
-		Logger.Error(err)
-	}
-	info, err := redis.String(reply, err)
+
+	info, err := cmds.InfoCmd()
 
 	lines := strings.Split(info, "\n")
 	for _, l := range lines {
@@ -35,79 +28,49 @@ func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
 	return info, err
 }
 
-func SampleSlowlog(c redis.Conn, status *RedisStatus) ([]Slowlog, error) {
+func SampleSlowlog(cmds DataCmds, status *RedisStatus) ([]Slowlog, error) {
 	Logger.Debug("Sampling slowlog...")
-	entries, err := redis.Values(c.Do(SLOWLOG, "GET", SlowlogSize))
+	logs, err := cmds.SlowlogCmd()
 	if err != nil {
-		Logger.Error(err)
-		return nil, err
+		Logger.Errorf("DataCmds slowlog failed ewith error %s", err)
+		return logs, err
 	}
-	logs, err := ParesSlowlogLine(entries, err)
 	status.Slowlogs = logs
-	return logs, err
+	return logs, nil
 }
 
-func SampleMonitor(status *RedisStatus) {
+func SampleMonitor(cmds DataCmds, stopper chan bool, status *RedisStatus) {
+	replies := cmds.MonitorCmd(stopper)
+	replyIndex := 0
 	for {
-		c, err := rcon()
-		replies := make(chan string, 1000)
-		if err != nil {
-			Logger.Errorf("Connection failed sleeping and trying again")
-			time.Sleep(1 * time.Second)
+		reply, ok := <-replies
+		if !ok {
 			continue
 		}
-		c.Send(MONITOR)
-		c.Flush()
-		// In background push on the connection
-		go func() {
-			for {
-				reply, err := c.Receive()
-				if err != nil {
-					Logger.Errorf("Monitor reply error: %s", err)
-					close(replies)
-					return
-				}
-				r, err := redis.String(reply, err)
-				if err != nil {
-					Logger.Errorf("Couldn't convert reply %s", err)
-					continue
-				}
-				replies <- r
-				// process pushed message
+		cmdMon, err := ParseMonitorLine(reply)
+		if err != nil {
+			Logger.Errorf("Failed to parse line: %s", reply)
+		}
+		if cmdMon != nil {
+			// Append if room else write over them
+			if len(status.MonitorSample) <= replyIndex {
+				status.MonitorSample = append(status.MonitorSample, cmdMon)
+			} else {
+				status.MonitorSample[replyIndex] = cmdMon
 			}
-		}()
-		replyIndex := 0
-		for {
-			reply, ok := <-replies
-			if !ok {
-				continue
-			}
-			cmdMon, err := ParseMonitorLine(reply)
-			if err != nil {
-				Logger.Errorf("Failed to parse line: %s", reply)
-			}
-			if cmdMon != nil {
-				// Append if room else write over them
-				if len(status.MonitorSample) <= replyIndex {
-					status.MonitorSample = append(status.MonitorSample, cmdMon)
-				} else {
-					status.MonitorSample[replyIndex] = cmdMon
-				}
 
-				// Stats tracking
-				status.stats.IncCmdCount(cmdMon.Text)
-				// Increment index else reset to 0
-				if replyIndex < CmdLimit-1 {
-					replyIndex++
-				} else {
-					// Danger performance danger but this setting has to be overwritten by config so YMMV
-					if MonitorSampleLength > 0 {
-						time.Sleep(time.Duration(MonitorSampleLength) * time.Microsecond)
-					}
-					replyIndex = 0
+			// Stats tracking
+			status.stats.IncCmdCount(cmdMon.Text)
+			// Increment index else reset to 0
+			if replyIndex < CmdLimit-1 {
+				replyIndex++
+			} else {
+				// Danger performance danger but this setting has to be overwritten by config so YMMV
+				if MonitorSampleLength > 0 {
+					time.Sleep(time.Duration(MonitorSampleLength) * time.Microsecond)
 				}
+				replyIndex = 0
 			}
 		}
-		close(replies)
 	}
 }

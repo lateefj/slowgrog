@@ -51,9 +51,9 @@ func newPool(server, password string) *redis.Pool {
 }
 
 type DataCmds interface {
-	MonitorCmd() chan string
+	SlowlogCmd() ([]Slowlog, error)
 	InfoCmd() (string, error)
-	SlowlogCmd() []Slowlog
+	MonitorCmd(chan bool) chan string
 }
 
 type RedisCmds struct {
@@ -70,6 +70,16 @@ func (rc *RedisCmds) conn() redis.Conn {
 	return rc.Pool.Get()
 }
 
+func (rc *RedisCmds) SlowlogCmd() ([]Slowlog, error) {
+	c := rc.conn()
+	entries, err := redis.Values(c.Do(SLOWLOG, "GET", SlowlogSize))
+	if err != nil {
+		Logger.Errorf("Redis SLOWLOG GET %s", err)
+		return nil, err
+	}
+	return ParseSlowlogReply(entries, err)
+}
+
 func (rc *RedisCmds) InfoCmd() (string, error) {
 	c := rc.conn()
 	c.Send(INFO)
@@ -82,7 +92,7 @@ func (rc *RedisCmds) InfoCmd() (string, error) {
 	return redis.String(reply, err)
 }
 
-func (rc *RedisCmds) MonitorCmd() chan string {
+func (rc *RedisCmds) MonitorCmd(stopper chan bool) chan string {
 	replies := make(chan string, MONITOR_BUFFER_SIZE)
 	// In background push on the connection
 	go func() {
@@ -90,25 +100,31 @@ func (rc *RedisCmds) MonitorCmd() chan string {
 		c.Send(MONITOR)
 		c.Flush()
 		for {
-			reply, err := c.Receive()
-			if err != nil {
-				// Try to reconnect on error
-				Logger.Errorf("Reconnecting to redis after fail %s", err)
-				c.Close()
-				c := rc.conn()
-				c.Send(MONITOR)
-				c.Flush()
-				continue
+			select {
+			case <-stopper: // Stops the monitoring!
+				break
+			default:
+				reply, err := c.Receive()
+				if err != nil {
+					// Try to reconnect on error
+					Logger.Errorf("Reconnecting to redis after fail %s", err)
+					c.Close()
+					c = rc.conn()
+					c.Send(MONITOR)
+					c.Flush()
+					break
+				}
+
+				r, err := redis.String(reply, err)
+				if err != nil {
+					Logger.Errorf("Couldn't convert reply %s", err)
+					break
+				}
+				replies <- r
 			}
-			r, err := redis.String(reply, err)
-			if err != nil {
-				Logger.Errorf("Couldn't convert reply %s", err)
-				continue
-			}
-			replies <- r
-			// process pushed message
 		}
 		c.Close()
+		close(replies)
 	}()
 	return replies
 }
