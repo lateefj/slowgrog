@@ -14,18 +14,6 @@ const (
 	SLOWLOG             = "SLOWLOG"
 )
 
-func rcon() (redis.Conn, error) {
-	Logger.Debugf("Connecting to redis host %s on port %d", RedisHost, RedisPort)
-	c, err := redis.Dial("tcp", fmt.Sprintf("%s:%d", RedisHost, RedisPort))
-	if RedisPassword != "" {
-		if _, err := c.Do("AUTH", RedisPassword); err != nil {
-			c.Close()
-			return c, err
-		}
-	}
-	return c, err
-}
-
 func newPool(server, password string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     3,
@@ -99,7 +87,20 @@ func (rc *RedisCmds) MonitorCmd(stopper chan bool) chan string {
 		c := rc.conn()
 		c.Send(MONITOR)
 		c.Flush()
+		timeoutSet := false
 		for {
+			// Danger performance danger but this setting has to be overwritten by config so YMMV
+			// If the length is greater than 0 and the timeout is not already set then
+			// this will sleep in the future
+			if MonitorSampleLength > 0 && !timeoutSet {
+				// Flag the timeout is set so we don't double add sleeps
+				timeoutSet = true
+				time.AfterFunc(time.Duration(MonitorSampleLength)*time.Microsecond, func() {
+					time.Sleep(time.Duration(MonitorSampleLength) * time.Microsecond)
+					// Turn timeout off so it will get reset
+					timeoutSet = false
+				})
+			}
 			select {
 			case <-stopper: // Stops the monitoring!
 				break

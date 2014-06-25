@@ -1,11 +1,9 @@
 package main
 
-import (
-	//"fmt"
+import
+//"fmt"
 
-	"strings"
-	"time"
-)
+"strings"
 
 const ()
 
@@ -65,10 +63,6 @@ func SampleMonitor(cmds DataCmds, stopper chan bool, status *RedisStatus) {
 			if replyIndex < CmdLimit-1 {
 				replyIndex++
 			} else {
-				// Danger performance danger but this setting has to be overwritten by config so YMMV
-				if MonitorSampleLength > 0 {
-					time.Sleep(time.Duration(MonitorSampleLength) * time.Microsecond)
-				}
 				replyIndex = 0
 			}
 		}

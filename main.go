@@ -55,8 +55,8 @@ func main() {
 	flag.Parse()
 	rc := NewRedisCmds()
 	stopper := make(chan bool, 1)
+	go SampleMonitor(rc, stopper, Status)
 	go func() {
-		go SampleMonitor(rc, stopper, Status)
 		for {
 			_, err := SampleInfo(rc, Status)
 			if err != nil {
