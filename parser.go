@@ -53,18 +53,18 @@ type Slowlog struct {
 func ParesSlowlogLine(entries []interface{}, err error) ([]Slowlog, error) {
 	logs := make([]Slowlog, 0)
 	if err != nil {
-		log.Fatal(err)
+		Logger.Fatal(err)
 	}
 	for _, entry := range entries {
 		e, ok := entry.([]interface{})
 		if !ok {
-			Error.Println("Bad Slowlog entry")
+			Logger.Error("Bad Slowlog entry")
 			continue
 		}
 		l := Slowlog{}
 		_, err = redis.Scan(e, &l.ID, &l.Timestamp, &l.Duration, &l.Command)
 		if err != nil {
-			Error.Printf("Error trying to scan slowlog is %s", err)
+			Logger.Errorf("Error trying to scan slowlog is %s", err)
 			continue
 		}
 		logs = append(logs, l)

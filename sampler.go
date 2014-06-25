@@ -9,19 +9,15 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-const (
-	INFO    = "INFO"
-	MONITOR = "MONITOR"
-	SLOWLOG = "SLOWLOG"
-)
+const ()
 
 func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
-	Trace.Println("Sampling INFO...")
+	Logger.Debug("Sampling INFO...")
 	c.Send(INFO)
 	c.Flush()
 	reply, err := c.Receive()
 	if err != nil {
-		Error.Println(err)
+		Logger.Error(err)
 	}
 	info, err := redis.String(reply, err)
 
@@ -40,10 +36,10 @@ func SampleInfo(c redis.Conn, status *RedisStatus) (string, error) {
 }
 
 func SampleSlowlog(c redis.Conn, status *RedisStatus) ([]Slowlog, error) {
-	Trace.Println("Sampling slowlog...")
+	Logger.Debug("Sampling slowlog...")
 	entries, err := redis.Values(c.Do(SLOWLOG, "GET", SlowlogSize))
 	if err != nil {
-		Error.Println(err)
+		Logger.Error(err)
 		return nil, err
 	}
 	logs, err := ParesSlowlogLine(entries, err)
@@ -56,7 +52,7 @@ func SampleMonitor(status *RedisStatus) {
 		c, err := rcon()
 		replies := make(chan string, 1000)
 		if err != nil {
-			Error.Printf("Connection failed sleeping and trying again")
+			Logger.Errorf("Connection failed sleeping and trying again")
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -67,11 +63,15 @@ func SampleMonitor(status *RedisStatus) {
 			for {
 				reply, err := c.Receive()
 				if err != nil {
-					Error.Println(err)
+					Logger.Errorf("Monitor reply error: %s", err)
 					close(replies)
 					return
 				}
 				r, err := redis.String(reply, err)
+				if err != nil {
+					Logger.Errorf("Couldn't convert reply %s", err)
+					continue
+				}
 				replies <- r
 				// process pushed message
 			}
@@ -84,7 +84,7 @@ func SampleMonitor(status *RedisStatus) {
 			}
 			cmdMon, err := ParseMonitorLine(reply)
 			if err != nil {
-				Error.Printf("Failed to parse line: %s", reply)
+				Logger.Errorf("Failed to parse line: %s", reply)
 			}
 			if cmdMon != nil {
 				// Append if room else write over them
@@ -108,5 +108,6 @@ func SampleMonitor(status *RedisStatus) {
 				}
 			}
 		}
+		close(replies)
 	}
 }
