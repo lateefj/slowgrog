@@ -65,6 +65,7 @@ func (rc *RedisCmds) SlowlogCmd() ([]Slowlog, error) {
 		Logger.Errorf("Redis SLOWLOG GET %s", err)
 		return nil, err
 	}
+	Logger.Debugf("Size of entires for slow log is %d", len(entries))
 	return ParseSlowlogReply(entries, err)
 }
 

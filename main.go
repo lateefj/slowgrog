@@ -33,16 +33,17 @@ func init() {
 	flag.IntVar(&RedisPort, "p", 6379, "redis port")
 	flag.StringVar(&RedisPassword, "a", "", "Redis password")
 
-	flag.IntVar(&CmdLimit, "cmdlimit", 100, "number of commands the monitor will store")
-	flag.IntVar(&Frequency, "frequency", 10000, "Number of miliseconds to delay between samples info, slowLogger")
+	flag.IntVar(&CmdLimit, "cmdlimit", 100, "number of commands the MONITOR will store")
+	flag.IntVar(&Frequency, "frequency", 1*60, "Number of seconds to delay between samples INFO, SLOWLOG")
 	flag.IntVar(&MonitorSampleLength, "monsamplen", 1000, "Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)")
-	flag.IntVar(&SlowlogSize, "sLoggersize", 10, "slowLogger size")
+	flag.IntVar(&SlowlogSize, "slogsize", 10, "SLOWLOG size")
 }
 
 type CommandStats struct {
 	CommandCounts map[string]int64 `json:"command_counts"`
 	BadCommands   map[string]int64 `json:"bad_commands"`
 }
+
 type RedisStatus struct {
 	CommandStats  CommandStats           `json:"stats"`
 	Slowlogs      []Slowlog              `json:"slowlogs"`

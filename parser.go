@@ -54,6 +54,7 @@ func ParseSlowlogReply(entries []interface{}, err error) ([]Slowlog, error) {
 	logs := make([]Slowlog, 0)
 	if err != nil {
 		Logger.Fatal(err)
+		return nil, err
 	}
 	for _, entry := range entries {
 		e, ok := entry.([]interface{})
@@ -65,7 +66,7 @@ func ParseSlowlogReply(entries []interface{}, err error) ([]Slowlog, error) {
 		_, err = redis.Scan(e, &l.ID, &l.Timestamp, &l.Duration, &l.Command)
 		if err != nil {
 			Logger.Errorf("Error trying to scan slowlog is %s", err)
-			continue
+			return logs, err
 		}
 		logs = append(logs, l)
 	}

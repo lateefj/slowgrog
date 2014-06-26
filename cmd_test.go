@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -48,15 +49,31 @@ func TestInfoCmd(t *testing.T) {
 
 func TestSlowlogCmd(t *testing.T) {
 	rc := NewRedisCmds()
-	for x := 0; x < 10; x++ {
-		rc.InfoCmd()
+	genSize := 100
+	for x := 0; x < genSize; x++ {
+		k := fmt.Sprintf("_slowlog_test_%d", x)
+		rc.conn().Do("SET", k, x)
+		rc.conn().Do("GET", k, x)
+	}
+	rc.conn().Flush()
+	for x := 0; x < genSize; x++ {
+		go func() {
+			rc.conn().Send("KEYS", "*slowlog*")
+		}()
+	}
+	for x := 0; x < genSize; x++ {
+		k := fmt.Sprintf("_slowlog_test_%d", x)
+		rc.conn().Send("DEL", k)
 	}
 
 	logs, err := rc.SlowlogCmd()
 	if err != nil {
 		t.Fatalf("Failed to call slowlogcmd error: %s", err)
 	}
-	if len(logs) != 10 {
+	if logs == nil {
+		t.Fatalf("No slowlogs :(")
+	}
+	if len(logs) < 1 {
 		t.Errorf("Expected 10 logs got %d", len(logs))
 	}
 
