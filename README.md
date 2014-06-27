@@ -22,6 +22,7 @@ Tried to keep the arguments for the redis-cli the same for auth, port and host. 
 -frequency=60: Number of seconds to delay between samples INFO, SLOWLOG
 -monsamplen=1000: Length of miliseconds that the monitor is sampled (0 will be coninuous however this is very costly to performance)
 -slogsize=10: SLOWLOG size
+-webport=7071: The port listen on to render the json output
 ```
 
 Vision:
